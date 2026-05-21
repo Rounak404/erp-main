@@ -1,0 +1,219 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//----------------
+//Identity & Auth 
+//----------------
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  password      String   @map("password_hash")
+  phoneNo       String?  @map("phone_no")
+  profileImage  String?  @map("profile_image")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  role       String    @default("USER") @map("role")
+  banned     Boolean   @default(false) @map("banned")
+  banReason  String?   @map("ban_reason")
+  banExpires DateTime? @map("ban_expires") @db.Timestamptz(3)
+
+  student Student?
+  teacher Teacher?
+  admin   Admin?
+
+  sessions Session[]
+  accounts Account[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+
+  impersonatedBy String? @map("impersonated_by")
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+//------------------------------
+// Academics (Students/Teachers)
+//------------------------------
+
+enum Class {
+  I
+  II
+  III
+  IV
+  V
+  VI
+  VII
+  VIII
+  IX
+  X
+  XI
+  XII
+}
+
+model Student {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  rollNumber    String   @unique @map("roll_number")
+  admissionDate DateTime @map("admission_date")
+
+  classRoomId String?    @map("class_room_id")
+  classRoom   ClassRoom? @relation(fields: [classRoomId], references: [id], onDelete: SetNull)
+
+  user        User         @relation(fields: [userId], references: [id])
+  attendances Attendance[]
+}
+
+model Teacher {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  employeeId  String   @unique @map("employee_id")
+  joiningDate DateTime @map("joining_date")
+
+  classSubjects ClassSubject[]
+
+  user        User         @relation(fields: [userId], references: [id])
+  attendances Attendance[]
+
+  @@map("teachers")
+}
+
+model Admin {
+  id          String @id @default(uuid())
+  userId      String @unique @map("user_id")
+  employeeId  String @unique @map("employee_id")
+  accessLevel String @map("access_level")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("admins")
+}
+
+model ClassRoom {
+  id      String  @id @default(uuid())
+  name    String
+  grade   String
+  section String?
+
+  students Student[]
+
+  subjects    ClassSubject[]
+  attendances Attendance[]
+
+  @@unique([grade, section])
+  @@map("class_rooms")
+}
+
+model Subject {
+  id   String @id @default(uuid())
+  name String
+
+  classes ClassSubject[]
+
+  @@map("subjects")
+}
+
+model ClassSubject {
+  id          String  @id @default(uuid())
+  classRoomId String  @map("class_room_id")
+  subjectId   String  @map("subject_id")
+  teacherId   String? @map("teacher_id")
+
+  classRoom ClassRoom @relation(fields: [classRoomId], references: [id], onDelete: Cascade)
+  subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher   Teacher?  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@unique([classRoomId, subjectId])
+  @@map("class_subjects")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+model Attendance {
+  id     String           @id @default(uuid())
+  date   DateTime         @db.Date
+  status AttendanceStatus
+
+  studentId   String    @map("student_id")
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classRoomId String    @map("classroom_id")
+  classroom   ClassRoom @relation(fields: [classRoomId], references: [id], onDelete: Cascade)
+
+  teacherId String?  @map("teacher_id")
+  teacher   Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([studentId, date])
+  @@map("attendances")
+}
