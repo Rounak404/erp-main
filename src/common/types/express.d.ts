@@ -8,6 +8,8 @@ declare global {
     interface Request {
       user?: CustomUser
       session?: Session
+      teacherId?:string
+      studentId?:string
     }
   }
 }
